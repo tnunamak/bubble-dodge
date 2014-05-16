@@ -9,3 +9,5 @@ Run with `lein trampoline run`
 ## Play
 
 Use the arrow keys to dodge the bubbles!
+
+![bubbles watch out!](/doc/bubbles.png?raw=true)
