@@ -1,6 +1,6 @@
 # bubble-dodge
 
-Just an exercise in making a game with Clojure (with no non-local mutable state)
+Just an exercise in making a game with Clojure (without non-local mutable state)
 
 ## Installation
 
