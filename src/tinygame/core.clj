@@ -10,6 +10,30 @@
                         y (range rows)]
                   (s/put-string scr x y " "))))
 
+(defn process-input [scr game]
+  (let [[x y] (:cursor game)]
+    (let [new-cursor (case (s/get-key scr)
+                       :left [(- x 1) y]
+                       :right [(+ x 1) y]
+                       :up [x (- y 1)]
+                       :down [x (+ y 1)]
+                       [x y])]
+      (s/move-cursor scr (get new-cursor 0) (get new-cursor 1))
+      (assoc-in game [:cursor] new-cursor))))
+
+(defn in-circle [x y radius xi yi]
+  (< (+ (math/expt (- xi x) 2)
+                (math/expt (- yi y) 2))
+             (math/expt radius 2)))
+
+(defn draw-score [scr game]
+  (s/put-string scr 0 0 (str (:score game))))
+
+(defn score [scr game]
+  (if (seq (filter #(apply in-circle (concat % (:cursor game))) (:points game)))
+    (assoc-in game [:status] :game-over)
+    (assoc-in game [:score] (+ 1 (:score game)))))
+
 (defn draw-pt [scr x y]
   (s/put-string scr x y "*"))
 
@@ -17,10 +41,7 @@
   (let [[cols rows] (s/get-size scr)]
     (doseq [xi (range cols)
             yi (range rows)]
-
-      (if (< (+ (math/expt (- xi x) 2)
-                (math/expt (- yi y) 2))
-             (math/expt radius 2))
+      (if (in-circle x y radius xi yi)
             (draw-pt scr xi yi)))))
 
 (defn get-rand-point [scr]
@@ -31,41 +52,43 @@
     (draw-circle scr x y radius)))
 
 (defn collapse-big-points [game]
-  (let [x (filter
-             #(let [[x y rad] %] (< rad 10))
-             (:points game))]
-    {:points x}))
+  (assoc-in game [:points] (filter
+                               #(let [[x y rad] %] (< rad 10))
+                               (:points game))))
 
 (defn grow [game]
-  {:points (map #(let [[x y rad] %]
-                      [x y (+ 1 rad)]) (:points game))})
+  (assoc-in game [:points] (map #(let [[x y rad] %]
+                        [x y (+ 1 rad)]) (:points game))))
 
 (defn recalculate [game scr]
   (let [new-game (collapse-big-points game)]
-    (if (> 0.3 (rand))
-      {:points (conj (:points (grow new-game)) (get-rand-point scr))}
+    (if (> 0.8 (rand))
+      (assoc-in game [:points] (conj (:points (grow new-game)) (get-rand-point scr)))
       (grow new-game))))
 
 (defn go []
-
-    (def points (atom #{}))
     (def scr (s/get-screen))
 
     (s/start scr)
 
     (def my-pool (mk-pool))
 
-    (defn draw [game]
-      (let [new-game (recalculate game scr)]
+    (defn tick [game tick-count]
+      (let [new-game (if (= (mod tick-count 25) 0)
+            (process-input scr (recalculate game scr))
+            (process-input scr game))]
         (do
           (clear-screen scr)
 
           (draw-points scr new-game)
+          (draw-score scr new-game)
 
           (s/redraw scr)
-          (at (+ 500 (now)) #(draw new-game) my-pool))))
+          (let [scored-game (score scr new-game)]
+            (if (not= (:status new-game) :game-over)
+                (at (+ 10 (now)) #(tick scored-game (inc tick-count)) my-pool))))))
 
-    (draw {:points #{}}))
+    (tick {:points #{} :cursor (get-rand-point scr) :score 0} 0))
 
 ;(let [inp (s/get-key-blocking scr)]
 ;              (if (= (str inp) "x") (s/stop scr)))
